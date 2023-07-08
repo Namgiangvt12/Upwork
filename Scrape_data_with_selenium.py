@@ -1,67 +1,125 @@
-from selenium.webdriver.common.by import By
-import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from MyClasses import kt_rong,save_to_csv
+import csv
 from bs4 import BeautifulSoup
-import pandas as pd
-url = "https://www.bol.gov.la/microfinance"
+from time import sleep
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import MyClasses
+
 contents = []
-header = {
-"Authority":"www.ngocentre.org.vn",
-"Method":"GET",
-"Path" : "/ingodirectory",
-"Scheme":"https",
-"Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-"Accept-Encoding":"gzip, deflate, br",
-"Accept-Language":"vi,vi-VN;q=0.9,en-US;q=0.8,en;q=0.7",
-"Cache-Control":"max-age=0",
-"Cookie":"SESS2616722a74148ebb7216411383223c3d=fpn5onj7eu7n7oo6ube39b2ka5; has_js=1; __utmc=23834021; __utmz=23834021.1688178323.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); __utma=23834021.1652650096.1688178323.1688178323.1688180545.2; __utmb=23834021.1.10.1688180545",
-"If-Modified-Since":"Sat, 01 Jul 2023 02:42:22 GMT",
-"Sec-Ch-Ua": r"Not.A/Brand;v=8, Chromium;v=114, Google Chrome;v=114",
-"Sec-Ch-Ua-Mobile":"?0",
-"Sec-Ch-Ua-Platform":"Windows",
-"Sec-Fetch-Dest":"document",
-"Sec-Fetch-Mode":"navigate",
-"Sec-Fetch-Site":"none",
-"Sec-Fetch-User":"?1",
-"Upgrade-Insecure-Requests":"1",
-"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
-}
+page_num = 0
 
 
-def getdata(url_,header_):
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    browser = webdriver.Chrome(options=chrome_options)
-    browser.get(url_)
-    time.sleep(3)
-    soup = BeautifulSoup(browser.page_source, 'lxml')
-    tbodys = soup.find_all('tbody')
-    for tbody in tbodys :
-        rows = tbody.select('tr')
-        if len(rows) > 1 :
+def getdata(url):
+    global page_num
+    browser = webdriver.Chrome()
+    browser.maximize_window()
+    browser.get(url)
+    sleep(5)
+    searchBtn = browser.find_element(By.XPATH,
+                                     "/html/body/div[1]/div[2]/div[5]/div[3]/div/div/div/form/div[4]/div/input[1]")
+    searchBtn.click()
+    page_num = int(input("Nhập giá trị page : "))
+    old = ""
+    while page_num < 1706:
+        contents = []
+        sleep(3)
+        soup = BeautifulSoup(browser.page_source, 'lxml')
+        print(old)
+        if old != "" :
+            while old == soup.find("li",class_="navigatorLabel results-display-text text-right").text.strip() :
+                sleep(5)
+                soup = BeautifulSoup(browser.page_source, 'lxml')
+
+        table = soup.find("table", class_="table table-view LINE")
+        if table:
+            tbody = table.find("tbody")
+            rows = tbody.select("tr")
             for row in rows:
-                cells = row.select("td")
-                if len(cells) > 2 :
-                    Code = kt_rong(cells[1].text.strip())
-                    Name = kt_rong(cells[2].text.strip())
-                    #anchor = cells[4].find('a')
-                    #if anchor is not None:
-                        #PDF = "https://www.bol.gov.la/" + anchor.get('href')
-                    #else:
-                        #PDF = "N/A"
-                    Phone = kt_rong(cells[3].text.strip())
-                    Location = kt_rong(cells[4].text.strip())
-                    contents.append([Code, Name, Phone, Location])
-    for content in contents :
-        print(content)
+                try:
+                    ID = row.get("id")
+                    Linktopattern = "http://wipopublish.ipvietnam.gov.vn/wopublish-search/public/detail/patents?id=" + ID
+                except:
+                    Linktopattern = "N/A"
+                cells = row.find_all("div", class_="row")
+                try:
+                    status = cells[1].find("span").text.strip()
+                except:
+                    status = "N/A"
+                try:
+                    name = cells[2].find("span", class_="rs-TITL").text.strip()
+                except:
+                    name = "N/A"
+                try:
+                    num_first = cells[3].find("span", class_="rs-AFNB_ORI").text.strip()
+                except:
+                    num_first = "N/A"
+                try:
+                    date_apply = cells[3].find("span", class_="rs-AFDT").text.strip()
+                except:
+                    date_apply = "N/A"
+                try:
+                    num_announce = cells[4].find("span", class_="rs-GZNB").text.strip() + "\n" + cells[4].find("span",
+                                                                                                               class_="rs-PBNB").text.strip()
+                except:
+                    num_announce = "N/A"
+                try:
+                    date_announce = cells[4].find("span", class_="rs-PBDT").text.strip()
+                except:
+                    date_announce = "N/A"
+                try:
+                    Code_country = cells[6]
+                    Code_country = MyClasses.kt_rong(Code_country.text.strip())
+                except:
+                    Code_country = "N/A"
+                try:
+                    IPC_type = cells[5].find("span", class_="rs-IPC_ORI")
+                    if IPC_type is not None:
+                        IPC_type = IPC_type.text.strip()
+                except:
+                    IPC_type = "N/A"
+                try:
+                    Num_pattern = cells[7].find("span", class_="rs-RENB").text.strip()
+                except:
+                    Num_pattern = "N/A"
+                try:
+                    date_release_pattern = cells[7].find("span", class_="rs-REDT").text.strip()
+                except:
+                    date_release_pattern = "N/A"
+                try:
+                    owner_pattern = cells[8].find("span", class_="rs-APNA").text.strip()
+                except:
+                    owner_pattern = "N/A"
+                try:
+                    author = cells[8].find("span", class_="rs-INNA").text.strip()
+                except:
+                    author = "N/A"
+                try:
+                    summary = cells[9].find("span", class_="rs-ABST").text.strip()
+                except:
+                    summary = "N/A"
+                contents.append((Linktopattern, status, name, num_first, date_apply, num_announce, date_announce,Code_country, IPC_type, Num_pattern, date_release_pattern, owner_pattern, author,summary))
+        title_ = ""
+        MyClasses.save_to_csv(contents, "800.128", title_)
+        page_num = page_num + 1
+        print(f"Reading in page : {page_num}")
+        file_name = f"process.txt"
+        with open(file_name, mode='w', newline='', encoding="utf-8") as file:
+            file.write(str(page_num))
+        wait = WebDriverWait(browser, 200)
+        wait.until(EC.invisibility_of_element_located((By.ID, "loadingDiv")))
+        old = soup.find("li", class_="navigatorLabel results-display-text text-right").text.strip()
+        next_page_btn = browser.find_element(By.XPATH,
+                                             "//i[contains(@class, 'fa-step-forward') and contains(@class, 'fa-lg') and contains(@class, 'pageNumber')]")
+        try:
+            next_page_btn.click()
+        except:
+            browser.execute_script("arguments[0].click();", next_page_btn)
 
-getdata(url,header)
-tilte = ["code","Name of the institution","landline number", "Office location" ]
-save_to_csv(contents,"902.393",tilte)
-print("Good Job Amazing")
 
-
-
-
+url = "http://wipopublish.ipvietnam.gov.vn/wopublish-search/public/patents?3&query=*:*"
+title = (
+    "link", "status", "name", "num_first", "date_apply", "num_announce", "date_announce", "Code_country", "IPC_type",
+    "Num_pattern", "date_release_pattern", "owner_pattern", "author", "summary")
+getdata(url)
